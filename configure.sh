@@ -7,9 +7,15 @@
 340     Half-Life 2: Lost Coast
 APP-ID-REF
 
+# HealthCheck dependencies
+yum install -y nginx
+chkconfig nginx on
+
+# SteamCMD dependencies
 yum install -y glibc.i686 libstdc++.i686
 useradd -m steam
 
+# Become Steam, install games
 su steam <<'EOF'
 mkdir ~/Steam && cd ~/Steam
 wget 'http://media.steampowered.com/installer/steamcmd_linux.tar.gz'
@@ -26,4 +32,3 @@ app_update 340 validate
 quit" > synergy.txt
 ./steamcmd.sh +runscript synergy.txt
 EOF
-

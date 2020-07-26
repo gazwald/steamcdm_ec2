@@ -50,17 +50,19 @@ class SteamcmdEc2Stack(core.Stack):
         )
 
     def configure_security_groups(self):
-        my_ip = os.getenv('MYIP', None)
-        if not my_ip:
+        myip = os.getenv('MYIP', None)
+        if not myip:
             print("Define $MYIP")
 
         home = ec2.Peer.ipv4(myip)
         ssh = ec2.Port.tcp(22)
         game = ec2.Port.udp(self.port)
+        rcon = ec2.Port.tcp(self.port)
         icmp = ec2.Port.all_icmp()
         self.instance.connections.allow_from_any_ipv4(game)
         self.instance.connections.allow_from_any_ipv4(icmp)
         self.instance.connections.allow_from(home, ssh)
+        self.instance.connections.allow_from(home, rcon)
 
     def add_userdata_to_instance(self):
         local_path = self.instance.user_data.add_s3_download_command(
@@ -88,3 +90,20 @@ class SteamcmdEc2Stack(core.Stack):
         )
         endpoint_group = globalaccelerator.EndpointGroup(self, "Group", listener=listener)
         endpoint_group.add_ec2_instance("InstanceEndpoint", self.instance)
+
+        self.fix_missing_cloudformation(endpoint_group)
+
+    def fix_missing_cloudformation(self, endpoint_group):
+        """
+        Adds the following:
+           HealthCheckPort: 80
+           HealthCheckProtocol: TCP
+           HealthCheckPath: “/health”
+           HealthCheckIntervalSeconds: 30
+        """
+        cfn = endpoint_group.node.default_child
+
+        cfn.add_override("Properties.HealthCheckPort", 80)
+        cfn.add_override("Properties.HealthCheckProtocol", "TCP")
+        cfn.add_override("Properties.HealthCheckPath", "/")
+        cfn.add_override("Properties.HealthCheckIntervalSeconds", 30)
