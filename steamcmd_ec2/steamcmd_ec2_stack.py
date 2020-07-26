@@ -19,6 +19,7 @@ class SteamcmdEc2Stack(core.Stack):
         self.userdata = self.define_userdata_asset(os.getcwd(), 'configure.sh')
         self.ami = self.find_ami()
         self.instance = self.define_ec2_instance()
+        self.configure_security_groups()
         self.add_userdata_to_instance()
         self.create_accelerator()
 
@@ -47,6 +48,19 @@ class SteamcmdEc2Stack(core.Stack):
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             key_name="Gazwald"
         )
+
+    def configure_security_groups(self):
+        my_ip = os.getenv('MYIP', None)
+        if not my_ip:
+            print("Define $MYIP")
+
+        home = ec2.Peer.ipv4(myip)
+        ssh = ec2.Port.tcp(22)
+        game = ec2.Port.udp(self.port)
+        icmp = ec2.Port.all_icmp()
+        self.instance.connections.allow_from_any_ipv4(game)
+        self.instance.connections.allow_from_any_ipv4(icmp)
+        self.instance.connections.allow_from(home, ssh)
 
     def add_userdata_to_instance(self):
         local_path = self.instance.user_data.add_s3_download_command(
