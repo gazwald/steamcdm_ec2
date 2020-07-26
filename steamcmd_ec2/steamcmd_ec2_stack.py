@@ -5,6 +5,7 @@ from aws_cdk import core
 
 import aws_cdk.aws_ec2 as ec2
 import aws_cdk.aws_s3_assets as s3_assets
+import aws_cdk.aws_globalaccelerator as globalaccelerator
 
 
 class SteamcmdEc2Stack(core.Stack):
@@ -12,11 +13,14 @@ class SteamcmdEc2Stack(core.Stack):
     def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
+        self.port = 27015
+
         self.vpc = ec2.Vpc.from_lookup(self, "VPC", vpc_id='vpc-0051b8b7bdff9a7d0')
         self.userdata = self.define_userdata_asset(os.getcwd(), 'configure.sh')
         self.ami = self.find_ami()
         self.instance = self.define_ec2_instance()
         self.add_userdata_to_instance()
+        self.create_accelerator()
 
     def define_userdata_asset(self, path, filename):
         full_path = os.path.join(path, filename)
@@ -57,3 +61,16 @@ class SteamcmdEc2Stack(core.Stack):
 
         self.userdata.grant_read(self.instance.role)
 
+    def create_accelerator(self):
+        accelerator = globalaccelerator.Accelerator(self, "Accelerator")
+        ports = [globalaccelerator.PortRange(
+            from_port=self.port,
+            to_port=self.port
+        )]
+        listener = globalaccelerator.Listener(self, "Listener",
+            accelerator=accelerator,
+            protocol=globalaccelerator.ConnectionProtocol.UDP,
+            port_ranges=ports
+        )
+        endpoint_group = globalaccelerator.EndpointGroup(self, "Group", listener=listener)
+        endpoint_group.add_ec2_instance("InstanceEndpoint", self.instance)
